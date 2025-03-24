@@ -11,6 +11,7 @@ import time
 import argparse
 import os
 import sys
+import psutil
 from typing import Dict, List, Any, Optional
 import uuid
 from datetime import datetime, timedelta
@@ -54,6 +55,7 @@ class EventGenerator:
         email_schema_path = os.path.join(self.schema_dir, "email-contact.schema.json")
         phone_schema_path = os.path.join(self.schema_dir, "phone-contact.schema.json")
         address_schema_path = os.path.join(self.schema_dir, "address-contact.schema.json")
+        metadata_schema_path = os.path.join(self.schema_dir, "metadata.schema.json")
         
         with open(schema_path, 'r') as f:
             self.schema = json.load(f)
@@ -66,6 +68,9 @@ class EventGenerator:
         
         with open(address_schema_path, 'r') as f:
             self.address_schema = json.load(f)
+            
+        with open(metadata_schema_path, 'r') as f:
+            self.metadata_schema = json.load(f)
     
     def generate_random_id(self) -> str:
         """Generate a random ID."""
@@ -136,23 +141,30 @@ class EventGenerator:
         return random.sample(TAGS, num_tags)
     
     def generate_random_metadata(self) -> Dict[str, Any]:
-        """Generate random metadata."""
-        metadata = {}
+        """Generate random metadata according to the metadata schema."""
+        # Randomly choose between employee and contractor metadata
+        is_employee = random.random() > 0.5
         
-        # Add join date or contract dates
-        if random.random() > 0.5:
-            # Employee join date
-            join_date = self.fake.date_between(start_date='-10y', end_date='today')
-            metadata["joinDate"] = join_date.strftime("%Y-%m-%d")
-            metadata["department"] = random.choice(DEPARTMENTS)
+        if is_employee:
+            # Generate employee metadata
+            metadata = {
+                "joinDate": self.fake.date_between(start_date='-10y', end_date='today').strftime("%Y-%m-%d"),
+                "department": random.choice(DEPARTMENTS),
+                "status": None,
+                "lastUpdated": None
+            }
         else:
-            # Contractor dates
+            # Generate contractor metadata
             start_date = self.fake.date_between(start_date='-1y', end_date='today')
             end_date = self.fake.date_between(start_date=start_date, end_date='+1y')
-            metadata["contractStart"] = start_date.strftime("%Y-%m-%d")
-            metadata["contractEnd"] = end_date.strftime("%Y-%m-%d")
+            metadata = {
+                "contractStart": start_date.strftime("%Y-%m-%d"),
+                "contractEnd": end_date.strftime("%Y-%m-%d"),
+                "status": None,
+                "lastUpdated": None
+            }
         
-        # Add other random metadata fields
+        # Add optional fields with some probability
         if random.random() > 0.7:
             metadata["status"] = random.choice(["active", "inactive", "pending"])
         
@@ -177,7 +189,7 @@ class EventGenerator:
 
 
 def generate_events_at_rate(generator: EventGenerator, output_plugin: OutputPlugin, 
-                           count: Optional[int], rate: float) -> None:
+                           count: Optional[int], rate: float, stats_interval: float = 5.0) -> None:
     """
     Generate events at a specified rate (events per second).
     
@@ -186,6 +198,7 @@ def generate_events_at_rate(generator: EventGenerator, output_plugin: OutputPlug
         output_plugin: The output plugin to use
         count: Total number of events to generate, or None for continuous generation
         rate: Number of events per second (min: 1, max: unlimited)
+        stats_interval: Interval in seconds between statistics reports (default: 5.0)
     """
     if count is not None:
         print(f"Generating {count} random person events at a rate of {rate} events/second...")
@@ -199,6 +212,23 @@ def generate_events_at_rate(generator: EventGenerator, output_plugin: OutputPlug
     # Track timing for rate control
     start_time = time.time()
     events_generated = 0
+    
+    # Track timing for stats display
+    last_stats_time = start_time
+    last_stats_count = 0
+    
+    # Get the process for memory tracking
+    process = psutil.Process(os.getpid())
+    
+    # ANSI color codes for prettier output
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    BOLD = "\033[1m"
+    RESET = "\033[0m"
+    
+    # Get output plugin type
+    output_type = output_plugin.__class__.__name__
     
     try:
         # Use an infinite loop if count is None, otherwise generate the specified number
@@ -216,6 +246,41 @@ def generate_events_at_rate(generator: EventGenerator, output_plugin: OutputPlug
             # Calculate how much time to sleep to maintain the rate
             current_time = time.time()
             sleep_time = max(0, target_time - current_time)
+            
+            # Display stats at the specified interval
+            if current_time - last_stats_time >= stats_interval:
+                elapsed_since_last = current_time - last_stats_time
+                events_since_last = events_generated - last_stats_count
+                current_rate = events_since_last / elapsed_since_last
+                total_elapsed = current_time - start_time
+                overall_rate = events_generated / total_elapsed
+                
+                # Calculate percentage of target rate achieved
+                current_pct = (current_rate / rate) * 100
+                overall_pct = (overall_rate / rate) * 100
+                
+                # Current timestamp
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                # Get memory usage in MB
+                memory_info = process.memory_info()
+                memory_usage_mb = memory_info.rss / 1024 / 1024
+                
+                print(f"\n{BOLD}━━━━━━━━━━━━━━━━ EVENT GENERATOR STATS ━━━━━━━━━━━━━━━━{RESET}")
+                print(f"{BLUE}Timestamp:{RESET} {timestamp}")
+                print(f"{BLUE}Output plugin:{RESET} {output_type}")
+                print(f"{BLUE}Total events generated:{RESET} {events_generated}")
+                print(f"{BLUE}Elapsed time:{RESET} {total_elapsed:.2f} seconds")
+                print(f"{BLUE}Events per second:{RESET}")
+                print(f"  {BLUE}Target rate:{RESET} {rate:.2f}")
+                print(f"  {BLUE}Overall rate:{RESET} {overall_rate:.2f} {GREEN}({overall_pct:.1f}% of target){RESET}")
+                print(f"  {BLUE}Current rate (last {elapsed_since_last:.1f}s):{RESET} {current_rate:.2f} {GREEN}({current_pct:.1f}% of target){RESET}")
+                print(f"{BLUE}Memory usage:{RESET} {memory_usage_mb:.2f} MB")
+                print(f"{BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{RESET}\n")
+                
+                # Reset stats counters
+                last_stats_time = current_time
+                last_stats_count = events_generated
             
             if sleep_time > 0 and (count is None or i < count):
                 time.sleep(sleep_time)
@@ -245,6 +310,8 @@ def main():
     parser.add_argument("--schema-dir", type=str, default="schemas", 
                         help="Directory containing the schema files")
     parser.add_argument("--locale", type=str, help="Locale for generating fake data (e.g., 'en_US', 'fr_FR')")
+    parser.add_argument("--stats-interval", type=float, default=5.0,
+                        help="Interval in seconds between statistics reports (default: 5.0)")
     
     # Kafka specific options
     parser.add_argument("--kafka-config", type=str, 
@@ -264,6 +331,9 @@ def main():
     
     if args.rate <= 0:
         parser.error("Rate must be greater than 0")
+        
+    if args.stats_interval <= 0:
+        parser.error("Stats interval must be greater than 0")
     
     # Create the event generator
     generator = EventGenerator(args.schema_dir, args.locale)
@@ -284,7 +354,7 @@ def main():
     
     try:
         # Generate events at the specified rate
-        generate_events_at_rate(generator, output_plugin, args.count, args.rate)
+        generate_events_at_rate(generator, output_plugin, args.count, args.rate, args.stats_interval)
     finally:
         output_plugin.close()
 

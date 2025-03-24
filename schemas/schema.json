@@ -35,8 +35,7 @@
       "description": "List of tags associated with the person"
     },
     "metadata": {
-      "type": "object",
-      "additionalProperties": true,
+      "$ref": "metadata.schema.json",
       "description": "Additional metadata about the person"
     }
   }

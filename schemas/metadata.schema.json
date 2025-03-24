@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/schemas/metadata.schema.json",
+  "title": "Person Metadata Schema",
+  "description": "A schema for additional metadata about a person, with different structures for employees and contractors",
+  "type": "object",
+  "oneOf": [
+    {
+      "title": "Employee Metadata",
+      "type": "object",
+      "required": ["joinDate", "department"],
+      "properties": {
+        "joinDate": {
+          "type": "string",
+          "format": "date",
+          "description": "Date when the employee joined the company (YYYY-MM-DD)"
+        },
+        "department": {
+          "type": "string",
+          "description": "Department the employee belongs to"
+        },
+        "status": {
+          "type": ["string", "null"],
+          "enum": ["active", "inactive", "pending", null],
+          "default": null,
+          "description": "Current status of the employee"
+        },
+        "lastUpdated": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "default": null,
+          "description": "Timestamp when the record was last updated (YYYY-MM-DD HH:MM:SS)"
+        }
+      }
+    },
+    {
+      "title": "Contractor Metadata",
+      "type": "object",
+      "required": ["contractStart", "contractEnd"],
+      "properties": {
+        "contractStart": {
+          "type": "string",
+          "format": "date",
+          "description": "Start date of the contract (YYYY-MM-DD)"
+        },
+        "contractEnd": {
+          "type": "string",
+          "format": "date",
+          "description": "End date of the contract (YYYY-MM-DD)"
+        },
+        "status": {
+          "type": ["string", "null"],
+          "enum": ["active", "inactive", "pending", null],
+          "default": null,
+          "description": "Current status of the contractor"
+        },
+        "lastUpdated": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "default": null,
+          "description": "Timestamp when the record was last updated (YYYY-MM-DD HH:MM:SS)"
+        }
+      }
+    }
+  ]
+}

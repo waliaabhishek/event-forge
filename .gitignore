@@ -39,6 +39,7 @@ logs/
 .env
 .env.local
 .env.*.local
+*.local
 
 # Coverage reports
 htmlcov/

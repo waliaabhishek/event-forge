@@ -133,7 +133,7 @@ class KafkaOutputPlugin(OutputPlugin):
             key=key,
             value=event
         )
-        print(f"Sent message to Kafka topic '{self.topic}' with key: {key}")
+        # print(f"Sent message to Kafka topic '{self.topic}' with key: {key}")
         
     def close(self) -> None:
         """Close the Kafka producer."""
