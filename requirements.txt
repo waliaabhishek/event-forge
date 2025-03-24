@@ -1,3 +1,4 @@
 jsonschema>=4.17.3
 uuid>=1.30
 faker>=18.13.0
+kafka-python>=2.0.2

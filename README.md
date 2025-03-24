@@ -8,11 +8,21 @@ This project demonstrates how to create and use a JSON schema that includes a un
 .
 ├── data/                  # Sample data files
 │   └── sample-data.json   # Sample data demonstrating different contact types
+├── plugins/               # Plugin system
+│   └── output/            # Output plugins
+│       ├── __init__.py    # Plugin package initialization
+│       ├── base.py        # Base output plugin interface
+│       ├── terminal.py    # Terminal output plugin
+│       ├── file.py        # File output plugin
+│       ├── kafka.py       # Kafka output plugin
+│       └── registry.py    # Plugin registry for dynamic discovery
 ├── schemas/               # JSON schema files
 │   ├── schema.json        # Main schema with union field
 │   ├── email-contact.schema.json
 │   ├── phone-contact.schema.json
 │   └── address-contact.schema.json
+├── configs/               # Configuration files
+│   └── kafka.json         # Sample Kafka configuration
 ├── tests/                 # Test-related files
 │   └── results/           # Directory for test output files
 ├── generate_events.py     # Script to generate random events based on schema
@@ -78,52 +88,77 @@ The script uses the `jsonschema` library's `RefResolver` to properly handle the 
 
 ## Event Generator
 
-The project includes an event generator that creates random person events based on the JSON schema:
+The event generator creates random person events based on the schema. It supports:
 
-### Features
+- Generating random data for all fields in the schema
+- Outputting events to different destinations via a plugin system
+- Controlling the rate of event generation
+- Locale support for generating data in different languages/regions
 
-- **Random Data Generation**: Uses the Faker library to generate realistic random data
-- **Pluggable Output System**: Supports different output destinations
-  - Terminal output (default)
-  - File output
-- **Internationalization**: Supports generating data in different locales
-- **Rate Control**: Configurable events-per-second generation rate
+### Output Plugins
 
-### Usage
+The generator uses a modular output plugin system that allows for different output destinations:
+
+- **Terminal**: Prints events to the terminal as formatted JSON
+- **File**: Writes events to a file in JSON Lines format (one JSON object per line)
+- **Kafka**: Sends events to a Kafka topic with configurable settings
+
+The plugin system is designed to be extensible, making it easy to add new output plugins:
+
+1. Create a new plugin file in the `plugins/output` directory
+2. Implement the `OutputPlugin` interface
+3. Register the plugin in the registry
+
+Example usage:
 
 ```bash
-# Generate 10 events at 1 per second (default)
-python generate_events.py
+# Output to terminal (default)
+python generate_events.py --count 10
 
-# Generate 20 events at 5 per second
-python generate_events.py --count 20 --rate 5
+# Output to file
+python generate_events.py --count 10 --output file --output-path events.json
 
-# Generate events with French locale
-python generate_events.py --locale fr_FR
+# Output to Kafka
+python generate_events.py --count 10 --output kafka --kafka-topic person-events
 
-# Output to a file
-python generate_events.py --output file --output-path events.json
+# Output to Kafka using configuration file
+python generate_events.py --count 10 --output kafka --kafka-config configs/kafka.json
 ```
 
 ### Command-line Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--count` | Number of events to generate | 10 |
-| `--rate` | Number of events per second | 1.0 |
-| `--output` | Output plugin to use (terminal or file) | terminal |
-| `--output-path` | Path for file output (required with --output file) | None |
-| `--schema-dir` | Directory containing the schema files | schemas |
-| `--locale` | Locale for generating fake data (e.g., 'en_US', 'fr_FR') | None |
+```bash
+usage: generate_events.py [-h] [--count COUNT] [--rate RATE]
+                          [--output {terminal,file,kafka}]
+                          [--output-path OUTPUT_PATH]
+                          [--schema-dir SCHEMA_DIR] [--locale LOCALE]
+                          [--kafka-config KAFKA_CONFIG]
+                          [--kafka-bootstrap-servers KAFKA_BOOTSTRAP_SERVERS]
+                          [--kafka-topic KAFKA_TOPIC]
+                          [--kafka-key-field KAFKA_KEY_FIELD]
 
-### Output Plugins
+Generate random person events
 
-The event generator uses a pluggable output system that allows for different output destinations:
-
-1. **TerminalOutputPlugin**: Outputs events to the terminal as formatted JSON
-2. **FileOutputPlugin**: Writes events to a specified file (one JSON object per line)
-
-Additional output plugins can be added by implementing the `OutputPlugin` abstract base class.
+optional arguments:
+  -h, --help            show this help message and exit
+  --count COUNT         Number of events to generate
+  --rate RATE           Number of events per second (min: 1, max: unlimited)
+  --output {terminal,file,kafka}
+                        Output plugin to use
+  --output-path OUTPUT_PATH
+                        Path for file output
+  --schema-dir SCHEMA_DIR
+                        Directory containing the schema files
+  --locale LOCALE       Locale for generating fake data (e.g., 'en_US', 'fr_FR')
+  --kafka-config KAFKA_CONFIG
+                        Path to Kafka configuration JSON file
+  --kafka-bootstrap-servers KAFKA_BOOTSTRAP_SERVERS
+                        Comma-separated list of Kafka broker addresses (overridden if --kafka-config is provided)
+  --kafka-topic KAFKA_TOPIC
+                        Kafka topic to send events to (overridden if --kafka-config is provided)
+  --kafka-key-field KAFKA_KEY_FIELD
+                        Field from the event to use as the message key (overridden if --kafka-config is provided)
+```
 
 ## Testing
 
@@ -146,11 +181,11 @@ The test results are displayed with color-coded output and include accuracy meas
 ## Dependencies
 
 The project requires the following Python packages:
-- `jsonschema>=4.17.3`: For JSON schema validation
+- `jsonschema>=4.0.0`: For JSON schema validation
 - `uuid>=1.30`: For generating unique identifiers
-- `faker>=18.13.0`: For generating realistic random data
+- `faker>=8.0.0`: For generating realistic random data
+- `kafka-python>=2.0.2`: For Kafka output plugin
 
 Install dependencies with:
 ```bash
 pip install -r requirements.txt
-``` 

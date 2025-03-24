@@ -1,0 +1,14 @@
+{
+  "bootstrap_servers": "localhost:9092",
+  "topic": "person-events",
+  "key_field": "id",
+  "client_id": "person-event-generator",
+  "acks": "all",
+  "retries": 3,
+  "retry_backoff_ms": 100,
+  "batch_size": 16384,
+  "linger_ms": 10,
+  "compression_type": "snappy",
+  "max_in_flight_requests_per_connection": 5,
+  "request_timeout_ms": 30000
+}

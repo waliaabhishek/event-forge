@@ -192,6 +192,16 @@ def run_tests() -> None:
     print_result("High Rate Test", success, rate_accuracy)
     print(f"{YELLOW}Output:{RESET}\n{output}")
     
+    # Test 9: Plugin System
+    print_header("Test 9: Plugin System")
+    test_plugin_path = os.path.join(TEST_RESULTS_DIR, "test_plugin_system.json")
+    exit_code, output = run_command(f"python generate_events.py --count 3 --output file --output-path {test_plugin_path}")
+    file_success, line_count = validate_json_lines(test_plugin_path)
+    success = exit_code == 0 and file_success and line_count == 3
+    test_results.append(("Plugin System", success))
+    print_result("Plugin System", success, f"(Generated {line_count} valid JSON Lines)")
+    print(f"{YELLOW}Output:{RESET}\n{output}")
+    
     # Summary
     print_header("Test Summary")
     all_passed = all(result[1] for result in test_results)

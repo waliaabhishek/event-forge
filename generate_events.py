@@ -11,11 +11,14 @@ import time
 import argparse
 import os
 import sys
-from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional
 import uuid
 from datetime import datetime, timedelta
 from faker import Faker
+
+# Import the output plugin system
+from plugins.output.registry import get_output_plugin
+from plugins.output.base import OutputPlugin
 
 # Initialize the Faker generator
 fake = Faker()
@@ -26,51 +29,6 @@ TAGS = ["employee", "contractor", "customer", "vendor", "partner", "manager", "d
 
 DEPARTMENTS = ["Engineering", "Marketing", "Sales", "Support", "Finance", "HR", "Operations", "Executive", 
                "Product", "Design", "Research", "Legal", "IT", "Customer Success"]
-
-
-class OutputPlugin(ABC):
-    """Abstract base class for output plugins."""
-    
-    @abstractmethod
-    def output(self, event: Dict[str, Any]) -> None:
-        """Output an event."""
-        pass
-    
-    @abstractmethod
-    def close(self) -> None:
-        """Clean up resources."""
-        pass
-
-
-class TerminalOutputPlugin(OutputPlugin):
-    """Output plugin that prints events to the terminal."""
-    
-    def output(self, event: Dict[str, Any]) -> None:
-        """Print the event to the terminal as formatted JSON."""
-        print(json.dumps(event, indent=2))
-        print("-" * 40)
-    
-    def close(self) -> None:
-        """No cleanup needed for terminal output."""
-        pass
-
-
-class FileOutputPlugin(OutputPlugin):
-    """Output plugin that writes events to a file."""
-    
-    def __init__(self, file_path: str) -> None:
-        """Initialize with the output file path."""
-        self.file_path = file_path
-        self.file = open(file_path, 'w')
-    
-    def output(self, event: Dict[str, Any]) -> None:
-        """Write the event to the file as JSON."""
-        self.file.write(json.dumps(event) + "\n")
-    
-    def close(self) -> None:
-        """Close the file."""
-        if self.file:
-            self.file.close()
 
 
 class EventGenerator:
@@ -218,18 +176,6 @@ class EventGenerator:
         return event
 
 
-def get_output_plugin(output_type: str, output_path: Optional[str] = None) -> OutputPlugin:
-    """Factory function to create the appropriate output plugin."""
-    if output_type == "terminal":
-        return TerminalOutputPlugin()
-    elif output_type == "file":
-        if not output_path:
-            raise ValueError("Output path must be provided for file output")
-        return FileOutputPlugin(output_path)
-    else:
-        raise ValueError(f"Unknown output type: {output_type}")
-
-
 def generate_events_at_rate(generator: EventGenerator, output_plugin: OutputPlugin, 
                            count: int, rate: float) -> None:
     """
@@ -285,12 +231,22 @@ def main():
     parser.add_argument("--count", type=int, default=10, help="Number of events to generate")
     parser.add_argument("--rate", type=float, default=1.0, 
                         help="Number of events per second (min: 1, max: unlimited)")
-    parser.add_argument("--output", type=str, default="terminal", choices=["terminal", "file"], 
+    parser.add_argument("--output", type=str, default="terminal", choices=["terminal", "file", "kafka"], 
                         help="Output plugin to use")
     parser.add_argument("--output-path", type=str, help="Path for file output")
     parser.add_argument("--schema-dir", type=str, default="schemas", 
                         help="Directory containing the schema files")
     parser.add_argument("--locale", type=str, help="Locale for generating fake data (e.g., 'en_US', 'fr_FR')")
+    
+    # Kafka specific options
+    parser.add_argument("--kafka-config", type=str, 
+                        help="Path to Kafka configuration JSON file")
+    parser.add_argument("--kafka-bootstrap-servers", type=str, default="localhost:9092",
+                        help="Comma-separated list of Kafka broker addresses (overridden if --kafka-config is provided)")
+    parser.add_argument("--kafka-topic", type=str, default="events",
+                        help="Kafka topic to send events to (overridden if --kafka-config is provided)")
+    parser.add_argument("--kafka-key-field", type=str, default="id",
+                        help="Field from the event to use as the message key (overridden if --kafka-config is provided)")
     
     args = parser.parse_args()
     
@@ -305,7 +261,18 @@ def main():
     generator = EventGenerator(args.schema_dir, args.locale)
     
     # Create the output plugin
-    output_plugin = get_output_plugin(args.output, args.output_path)
+    output_kwargs = {}
+    if args.output == "file":
+        output_kwargs["file_path"] = args.output_path
+    elif args.output == "kafka":
+        if args.kafka_config:
+            output_kwargs["config_file"] = args.kafka_config
+        else:
+            output_kwargs["bootstrap_servers"] = args.kafka_bootstrap_servers
+            output_kwargs["topic"] = args.kafka_topic
+            output_kwargs["key_field"] = args.kafka_key_field
+    
+    output_plugin = get_output_plugin(args.output, **output_kwargs)
     
     try:
         # Generate events at the specified rate
