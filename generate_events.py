@@ -12,10 +12,12 @@ import argparse
 import os
 import sys
 import psutil
+import subprocess
 from typing import Dict, List, Any, Optional
 import uuid
 from datetime import datetime, timedelta
 from faker import Faker
+import signal
 
 # Import the output plugin system
 from plugins.output.registry import get_output_plugin
@@ -188,6 +190,28 @@ class EventGenerator:
         return event
 
 
+def move_cursor_up_and_clear(lines):
+    """Move cursor up and clear lines."""
+    if not sys.stdout.isatty():
+        return
+    
+    # Move up 'lines' lines
+    sys.stdout.write(f"\033[{lines}A")
+    
+    # For each line, clear it and move down
+    for i in range(lines):
+        sys.stdout.write("\033[2K")  # Clear the entire line
+        if i < lines - 1:
+            sys.stdout.write("\033[1B")  # Move down 1 line
+    
+    # Move back up to the starting position
+    if lines > 1:
+        sys.stdout.write(f"\033[{lines-1}A")
+    
+    # Flush the output
+    sys.stdout.flush()
+
+
 def generate_events_at_rate(generator: EventGenerator, output_plugin: OutputPlugin, 
                            count: Optional[int], rate: float, stats_interval: float = 5.0) -> None:
     """
@@ -200,11 +224,15 @@ def generate_events_at_rate(generator: EventGenerator, output_plugin: OutputPlug
         rate: Number of events per second (min: 1, max: unlimited)
         stats_interval: Interval in seconds between statistics reports (default: 5.0)
     """
+    # Print initial messages
     if count is not None:
         print(f"Generating {count} random person events at a rate of {rate} events/second...")
     else:
         print(f"Generating continuous random person events at a rate of {rate} events/second...")
         print("Press Ctrl+C to stop generation")
+    
+    # Add a blank line before stats will appear
+    print("")
     
     # Calculate the delay between events
     delay = 1.0 / rate if rate > 0 else 0
@@ -230,10 +258,39 @@ def generate_events_at_rate(generator: EventGenerator, output_plugin: OutputPlug
     # Get output plugin type
     output_type = output_plugin.__class__.__name__
     
+    # Check if we should display stats (only for non-terminal output)
+    should_display_stats = output_type != "TerminalOutputPlugin"
+    
+    # Track if we've displayed stats before and how many lines were output
+    stats_displayed = False
+    stats_lines = 12  # Number of lines in the stats display (header + data + footer + activity indicator)
+    
+    # Activity indicator characters
+    activity_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+    activity_idx = 0
+    last_activity_update = time.time()
+    activity_update_interval = 0.1  # Update the activity indicator every 100ms
+    
+    # Flag to track if we're terminating
+    terminating = False
+    
+    # Signal handler for graceful termination
+    def signal_handler(sig, frame):
+        nonlocal terminating
+        if not terminating:
+            terminating = True
+            print("\nGeneration interrupted by signal.")
+    
+    # Register signal handlers
+    original_sigint = signal.getsignal(signal.SIGINT)
+    original_sigterm = signal.getsignal(signal.SIGTERM)
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
     try:
         # Use an infinite loop if count is None, otherwise generate the specified number
         i = 0
-        while count is None or i < count:
+        while (count is None or i < count) and not terminating:
             # Generate and output the event
             event = generator.generate_event()
             output_plugin.output(event)
@@ -247,8 +304,20 @@ def generate_events_at_rate(generator: EventGenerator, output_plugin: OutputPlug
             current_time = time.time()
             sleep_time = max(0, target_time - current_time)
             
-            # Display stats at the specified interval
-            if current_time - last_stats_time >= stats_interval:
+            # Update activity indicator if needed
+            if should_display_stats and stats_displayed and current_time - last_activity_update >= activity_update_interval:
+                # Move cursor up to the activity line and clear it
+                sys.stdout.write("\033[1A\033[2K")
+                
+                # Print the activity indicator
+                activity_char = activity_chars[activity_idx]
+                activity_idx = (activity_idx + 1) % len(activity_chars)
+                print(f"{BLUE}Activity:{RESET} {activity_char} Processing events... ({events_generated} total)")
+                
+                last_activity_update = current_time
+            
+            # Display stats at the specified interval (only for non-terminal output)
+            if should_display_stats and current_time - last_stats_time >= stats_interval:
                 elapsed_since_last = current_time - last_stats_time
                 events_since_last = events_generated - last_stats_count
                 current_rate = events_since_last / elapsed_since_last
@@ -266,7 +335,12 @@ def generate_events_at_rate(generator: EventGenerator, output_plugin: OutputPlug
                 memory_info = process.memory_info()
                 memory_usage_mb = memory_info.rss / 1024 / 1024
                 
-                print(f"\n{BOLD}━━━━━━━━━━━━━━━━ EVENT GENERATOR STATS ━━━━━━━━━━━━━━━━{RESET}")
+                # If we've displayed stats before, move cursor up to overwrite the previous stats
+                if stats_displayed:
+                    move_cursor_up_and_clear(stats_lines)
+                
+                # Print the stats
+                print(f"{BOLD}━━━━━━━━━━━━━━━━ EVENT GENERATOR STATS ━━━━━━━━━━━━━━━━{RESET}")
                 print(f"{BLUE}Timestamp:{RESET} {timestamp}")
                 print(f"{BLUE}Output plugin:{RESET} {output_type}")
                 print(f"{BLUE}Total events generated:{RESET} {events_generated}")
@@ -276,25 +350,58 @@ def generate_events_at_rate(generator: EventGenerator, output_plugin: OutputPlug
                 print(f"  {BLUE}Overall rate:{RESET} {overall_rate:.2f} {GREEN}({overall_pct:.1f}% of target){RESET}")
                 print(f"  {BLUE}Current rate (last {elapsed_since_last:.1f}s):{RESET} {current_rate:.2f} {GREEN}({current_pct:.1f}% of target){RESET}")
                 print(f"{BLUE}Memory usage:{RESET} {memory_usage_mb:.2f} MB")
-                print(f"{BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{RESET}\n")
+                print(f"{BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{RESET}")
+                
+                # Add activity indicator line
+                activity_char = activity_chars[activity_idx]
+                print(f"{BLUE}Activity:{RESET} {activity_char} Processing events... ({events_generated} total)")
+                
+                # Set flag to indicate stats have been displayed
+                stats_displayed = True
                 
                 # Reset stats counters
                 last_stats_time = current_time
                 last_stats_count = events_generated
             
-            if sleep_time > 0 and (count is None or i < count):
+            if sleep_time > 0 and (count is None or i < count) and not terminating:
                 time.sleep(sleep_time)
                 
+            # If we've reached the count, break out of the loop
+            if count is not None and i >= count:
+                break
+    
     except KeyboardInterrupt:
-        print("\nEvent generation interrupted.")
+        # Handle Ctrl+C gracefully
+        print("\nGeneration interrupted by user.")
+    
     finally:
-        # Calculate actual rate achieved
-        end_time = time.time()
-        elapsed = end_time - start_time
-        actual_rate = events_generated / elapsed if elapsed > 0 else 0
+        # Restore original signal handlers
+        signal.signal(signal.SIGINT, original_sigint)
+        signal.signal(signal.SIGTERM, original_sigterm)
         
-        print(f"Generated {events_generated} events in {elapsed:.2f} seconds.")
+        # Calculate final statistics
+        end_time = time.time()
+        total_time = end_time - start_time
+        actual_rate = events_generated / total_time if total_time > 0 else 0
+        
+        # If we've been displaying stats, clear them before showing the final summary
+        if should_display_stats and stats_displayed:
+            # Add a newline after the activity indicator
+            print("\n")
+        else:
+            # Just add a newline for spacing
+            print("")
+        
+        # Print the final summary
+        if count is not None:
+            print(f"Generated {events_generated} events in {total_time:.2f} seconds.")
+        else:
+            print(f"Generated {events_generated} events in {total_time:.2f} seconds before interruption.")
+        
         print(f"Actual rate: {actual_rate:.2f} events/second")
+        
+        # Clean up the output plugin
+        output_plugin.close()
 
 
 def main():
