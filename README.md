@@ -2,6 +2,46 @@
 
 This project demonstrates how to create and use a JSON schema that includes a union field (implemented using `oneOf`), which can accept multiple different schema structures defined in separate files.
 
+## Quick Start
+
+Get up and running with the core functionality in minutes:
+
+### Installation
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd schema_in_schema_json_to_tableflow
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Basic Usage
+
+```bash
+# Validate sample data against the schema
+python validate_schema.py schemas/schema.json --data-file data/sample-data.json
+
+# Generate 10 random events and display them in the terminal
+python generate_events.py --count 10
+
+# Generate events to a file
+python generate_events.py --count 20 --output file --output-path events.json
+
+# Generate events continuously at 5 events per second to Kafka
+python generate_events.py --rate 5 --output kafka --kafka-config configs/kafka.json
+
+# Validate events from a Kafka topic against the schema
+python validate_schema.py schemas/schema.json --kafka --kafka-config configs/kafka.json
+```
+
+### Configuration
+
+1. Edit `configs/kafka.json` to configure your Kafka connection
+2. Modify schemas in the `schemas/` directory to customize your data model
+3. Run comprehensive tests with `python run_tests.py` to verify your setup
+
 ## Project Structure
 
 ```

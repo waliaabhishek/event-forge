@@ -1,14 +1,24 @@
 {
-  "bootstrap_servers": "localhost:9092",
-  "topic": "person-events",
+  "# Connection Properties": "These are used to establish the connection to Kafka",
+  "bootstrap.servers": "url.confluent.cloud:9092",
+  "security.protocol": "SASL_SSL",
+  "sasl.mechanisms": "PLAIN",
+  "sasl.username": "api_key",
+  "sasl.password": "api_secret",
+
+  "# Topic Configuration": "Settings for the Kafka topic",
+  "topic": "test",
   "key_field": "id",
-  "client_id": "person-event-generator",
+
+  "# Producer Properties": "These control how messages are sent to Kafka",
+  "client_id": "test",
   "acks": "all",
   "retries": 3,
   "retry_backoff_ms": 100,
   "batch_size": 16384,
   "linger_ms": 10,
-  "compression_type": "snappy",
+  "compression_type": "gzip",
   "max_in_flight_requests_per_connection": 5,
-  "request_timeout_ms": 30000
+  "request_timeout_ms": 30000,
+  "session.timeout.ms": 45000
 }

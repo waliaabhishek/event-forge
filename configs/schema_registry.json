@@ -1,0 +1,6 @@
+{
+  "url": "https://url.confluent.cloud",
+  "api_key": "api_key",
+  "api_secret": "api_secret",
+  "compatibility_level": "BACKWARD"
+}
