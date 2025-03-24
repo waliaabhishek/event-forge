@@ -4,8 +4,17 @@ Kafka output plugin for the event generator.
 
 import json
 import os
+import warnings
 from typing import Dict, Any, Optional
-from kafka import KafkaProducer
+
+# Try to import Kafka, but make it optional
+try:
+    from kafka import KafkaProducer
+    KAFKA_AVAILABLE = True
+except ImportError:
+    KAFKA_AVAILABLE = False
+    warnings.warn("kafka-python package not installed. KafkaOutputPlugin will be available but non-functional.")
+
 from .base import OutputPlugin
 
 
@@ -28,6 +37,13 @@ class KafkaOutputPlugin(OutputPlugin):
             key_field: Optional field from the event to use as the message key (used if config_file not provided)
             **kafka_config: Additional configuration options for KafkaProducer (used if config_file not provided)
         """
+        if not KAFKA_AVAILABLE:
+            warnings.warn("kafka-python package not installed. KafkaOutputPlugin will not send messages.")
+            self.producer = None
+            self.topic = topic
+            self.key_field = key_field
+            return
+            
         # Load configuration from file if provided
         if config_file and os.path.exists(config_file):
             with open(config_file, 'r') as f:
@@ -65,6 +81,11 @@ class KafkaOutputPlugin(OutputPlugin):
     
     def output(self, event: Dict[str, Any]) -> None:
         """Send the event to the Kafka topic."""
+        if not KAFKA_AVAILABLE or self.producer is None:
+            # Just print a message if Kafka is not available
+            print(f"[Kafka Output] Would send to topic '{self.topic}': {json.dumps(event)}")
+            return
+            
         key = None
         if self.key_field and self.key_field in event:
             key = event[self.key_field]
@@ -81,6 +102,6 @@ class KafkaOutputPlugin(OutputPlugin):
     
     def close(self) -> None:
         """Close the Kafka producer."""
-        if self.producer:
+        if KAFKA_AVAILABLE and self.producer:
             self.producer.flush()  # Ensure all messages are sent
             self.producer.close()
