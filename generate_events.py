@@ -177,17 +177,21 @@ class EventGenerator:
 
 
 def generate_events_at_rate(generator: EventGenerator, output_plugin: OutputPlugin, 
-                           count: int, rate: float) -> None:
+                           count: Optional[int], rate: float) -> None:
     """
     Generate events at a specified rate (events per second).
     
     Args:
         generator: The event generator
         output_plugin: The output plugin to use
-        count: Total number of events to generate
+        count: Total number of events to generate, or None for continuous generation
         rate: Number of events per second (min: 1, max: unlimited)
     """
-    print(f"Generating {count} random person events at a rate of {rate} events/second...")
+    if count is not None:
+        print(f"Generating {count} random person events at a rate of {rate} events/second...")
+    else:
+        print(f"Generating continuous random person events at a rate of {rate} events/second...")
+        print("Press Ctrl+C to stop generation")
     
     # Calculate the delay between events
     delay = 1.0 / rate if rate > 0 else 0
@@ -197,11 +201,14 @@ def generate_events_at_rate(generator: EventGenerator, output_plugin: OutputPlug
     events_generated = 0
     
     try:
-        for i in range(count):
+        # Use an infinite loop if count is None, otherwise generate the specified number
+        i = 0
+        while count is None or i < count:
             # Generate and output the event
             event = generator.generate_event()
             output_plugin.output(event)
             events_generated += 1
+            i += 1
             
             # Calculate how much time should have passed for the desired rate
             target_time = start_time + (events_generated / rate)
@@ -210,7 +217,7 @@ def generate_events_at_rate(generator: EventGenerator, output_plugin: OutputPlug
             current_time = time.time()
             sleep_time = max(0, target_time - current_time)
             
-            if sleep_time > 0 and i < count - 1:
+            if sleep_time > 0 and (count is None or i < count):
                 time.sleep(sleep_time)
                 
     except KeyboardInterrupt:
@@ -228,7 +235,8 @@ def generate_events_at_rate(generator: EventGenerator, output_plugin: OutputPlug
 def main():
     """Main function to parse arguments and generate events."""
     parser = argparse.ArgumentParser(description="Generate random person events")
-    parser.add_argument("--count", type=int, default=10, help="Number of events to generate")
+    parser.add_argument("--count", type=int, 
+                        help="Number of events to generate (omit for continuous generation)")
     parser.add_argument("--rate", type=float, default=1.0, 
                         help="Number of events per second (min: 1, max: unlimited)")
     parser.add_argument("--output", type=str, default="terminal", choices=["terminal", "file", "kafka"], 

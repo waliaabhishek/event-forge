@@ -202,17 +202,46 @@ def run_tests() -> None:
     print_result("Plugin System", success, f"(Generated {line_count} valid JSON Lines)")
     print(f"{YELLOW}Output:{RESET}\n{output}")
     
+    # Test 10: Continuous Generation with Ctrl+C Interrupt
+    print_header("Test 10: Continuous Generation with Ctrl+C Interrupt")
+    test_continuous_path = os.path.join(TEST_RESULTS_DIR, "test_continuous.json")
+    
+    # Start the continuous generation process
+    process = subprocess.Popen(
+        f"python generate_events.py --rate 10 --output file --output-path {test_continuous_path}",
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True
+    )
+    
+    # Let it run for a few seconds
+    time.sleep(3)
+    
+    # Send interrupt signal (SIGINT) to simulate Ctrl+C
+    process.send_signal(2)  # 2 is SIGINT
+    
+    # Get output
+    output, _ = process.communicate()
+    
+    # Check results
+    file_success, line_count = validate_json_lines(test_continuous_path)
+    success = "Event generation interrupted" in output and file_success and line_count > 0
+    
+    test_results.append(("Continuous Generation", success))
+    print_result("Continuous Generation", success, f"(Generated {line_count} events before interrupt)")
+    print(f"{YELLOW}Output:{RESET}\n{output}")
+    
     # Summary
     print_header("Test Summary")
     all_passed = all(result[1] for result in test_results)
-    pass_count = sum(1 for result in test_results if result[1])
     
     for test_name, success in test_results:
         status = f"{GREEN}PASS{RESET}" if success else f"{RED}FAIL{RESET}"
         print(f"{test_name}: {status}")
     
     overall_status = f"{GREEN}ALL TESTS PASSED{RESET}" if all_passed else f"{RED}SOME TESTS FAILED{RESET}"
-    print(f"\n{BOLD}Overall: {overall_status} ({pass_count}/{len(test_results)}){RESET}")
+    print(f"\n{BOLD}Overall: {overall_status} ({sum(1 for _, s in test_results if s)}/{len(test_results)}){RESET}")
 
 if __name__ == "__main__":
     try:

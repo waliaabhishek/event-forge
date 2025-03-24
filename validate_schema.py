@@ -68,11 +68,11 @@ def validate_data(schema, data, schema_dir):
             # If data is a list, validate each item
             for i, item in enumerate(data):
                 validate(instance=item, schema=resolved_schema)
-                print(f"Item {i+1}: Valid")
+                # print(f"Item {i+1}: Valid")
         else:
             # If data is a single object
             validate(instance=data, schema=resolved_schema)
-            print("Data is valid")
+            # print("Data is valid")
         return True
     except jsonschema.exceptions.ValidationError as e:
         print(f"Validation error: {e}")

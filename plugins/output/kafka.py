@@ -50,19 +50,47 @@ class KafkaOutputPlugin(OutputPlugin):
                 config = json.load(f)
                 
             # Extract main settings
-            self.bootstrap_servers = config.get('bootstrap_servers', bootstrap_servers)
             self.topic = config.get('topic', topic)
             self.key_field = config.get('key_field', key_field)
             
-            # Extract Kafka producer config
-            self.kafka_config = {k: v for k, v in config.items() 
-                               if k not in ['bootstrap_servers', 'topic', 'key_field']}
+            # Get bootstrap servers
+            bootstrap_servers = config.get('bootstrap.servers', config.get('bootstrap_servers', bootstrap_servers))
+            
+            # Prepare connection config (separate from producer config)
+            connection_config = {}
+            
+            # Security settings for Confluent Cloud
+            if 'security.protocol' in config:
+                connection_config['security_protocol'] = config['security.protocol']
+            
+            if 'sasl.mechanisms' in config:
+                connection_config['sasl_mechanism'] = config['sasl.mechanisms']
+            
+            if 'sasl.username' in config and 'sasl.password' in config:
+                connection_config['sasl_plain_username'] = config['sasl.username']
+                connection_config['sasl_plain_password'] = config['sasl.password']
+                
+            # Prepare producer config
+            producer_config = {}
+            
+            # Map producer config keys
+            producer_keys = [
+                'client_id', 'acks', 'retries', 'retry_backoff_ms', 
+                'batch_size', 'linger_ms', 'compression_type',
+                'max_in_flight_requests_per_connection', 'request_timeout_ms'
+            ]
+            
+            for key in producer_keys:
+                if key in config:
+                    producer_config[key] = config[key]
+            
+            # Combine configs
+            self.kafka_config = {**connection_config, **producer_config}
             
             # Merge with any additional config passed directly
             self.kafka_config.update(kafka_config)
         else:
             # Use provided parameters
-            self.bootstrap_servers = bootstrap_servers
             self.topic = topic
             self.key_field = key_field
             self.kafka_config = kafka_config
@@ -72,12 +100,22 @@ class KafkaOutputPlugin(OutputPlugin):
             self.kafka_config['value_serializer'] = lambda v: json.dumps(v).encode('utf-8')
         if 'key_serializer' not in self.kafka_config and self.key_field:
             self.kafka_config['key_serializer'] = lambda k: str(k).encode('utf-8')
+        
+        # Debug output
+        print(f"Connecting to Kafka with bootstrap_servers: {bootstrap_servers}")
+        print(f"Using topic: {self.topic}")
+        print(f"Kafka config keys: {', '.join(self.kafka_config.keys())}")
             
-        # Create the Kafka producer
-        self.producer = KafkaProducer(
-            bootstrap_servers=self.bootstrap_servers,
-            **self.kafka_config
-        )
+        try:
+            # Create the Kafka producer
+            self.producer = KafkaProducer(
+                bootstrap_servers=bootstrap_servers,
+                **self.kafka_config
+            )
+            print("Successfully connected to Kafka")
+        except Exception as e:
+            print(f"Failed to connect to Kafka: {str(e)}")
+            self.producer = None
     
     def output(self, event: Dict[str, Any]) -> None:
         """Send the event to the Kafka topic."""
@@ -95,11 +133,8 @@ class KafkaOutputPlugin(OutputPlugin):
             key=key,
             value=event
         )
+        print(f"Sent message to Kafka topic '{self.topic}' with key: {key}")
         
-        # Optional: Ensure the message is sent immediately
-        # Uncomment for synchronous behavior (slower but guaranteed delivery)
-        # self.producer.flush()
-    
     def close(self) -> None:
         """Close the Kafka producer."""
         if KAFKA_AVAILABLE and self.producer:
