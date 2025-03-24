@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/schemas/person.schema.json",
+  "title": "Person Record Schema",
+  "description": "A schema for person records with a flexible contact information field",
+  "type": "object",
+  "required": ["id", "name", "contactInfo"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the person"
+    },
+    "name": {
+      "type": "string",
+      "description": "Full name of the person"
+    },
+    "age": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Age of the person in years"
+    },
+    "contactInfo": {
+      "description": "Contact information that can be one of several formats",
+      "oneOf": [
+        { "$ref": "email-contact.schema.json" },
+        { "$ref": "phone-contact.schema.json" },
+        { "$ref": "address-contact.schema.json" }
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of tags associated with the person"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Additional metadata about the person"
+    }
+  }
+}

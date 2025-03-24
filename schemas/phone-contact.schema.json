@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/schemas/phone-contact.schema.json",
+  "title": "Phone Contact",
+  "type": "object",
+  "required": ["type", "phoneNumber", "countryCode"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["phone"],
+      "description": "Indicates this is phone contact info"
+    },
+    "phoneNumber": {
+      "type": "string",
+      "pattern": "^[0-9]{10}$",
+      "description": "10-digit phone number"
+    },
+    "countryCode": {
+      "type": "string",
+      "description": "Country code for the phone number"
+    },
+    "extension": {
+      "type": "string",
+      "description": "Optional phone extension"
+    }
+  }
+}

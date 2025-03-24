@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/schemas/email-contact.schema.json",
+  "title": "Email Contact",
+  "type": "object",
+  "required": ["type", "email"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["email"],
+      "description": "Indicates this is email contact info"
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "description": "Email address"
+    },
+    "isVerified": {
+      "type": "boolean",
+      "description": "Whether the email has been verified"
+    }
+  }
+}

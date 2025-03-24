@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/schemas/address-contact.schema.json",
+  "title": "Address Contact",
+  "type": "object",
+  "required": ["type", "street", "city", "postalCode", "country"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["address"],
+      "description": "Indicates this is address contact info"
+    },
+    "street": {
+      "type": "string",
+      "description": "Street address"
+    },
+    "city": {
+      "type": "string",
+      "description": "City name"
+    },
+    "state": {
+      "type": "string",
+      "description": "State or province"
+    },
+    "postalCode": {
+      "type": "string",
+      "description": "Postal or ZIP code"
+    },
+    "country": {
+      "type": "string",
+      "description": "Country name"
+    }
+  }
+}
